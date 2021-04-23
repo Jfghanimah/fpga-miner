@@ -6,7 +6,7 @@ FF = M - 1      #0xFFFFFFFF (for performing addition mod 2**32)
 
 
 #Constants from SHA256 definition
-K = (0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+K_t = (0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
      0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
      0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -25,7 +25,7 @@ K = (0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
 
 
 #Initial values for compression func
-H = (0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+H_t = (0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
      0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19)
 
 
@@ -65,7 +65,7 @@ def Sha256(M):
     return: A 32 byte array of the binary digest
     '''
     M = Pad(M)          #Pad message so that length is divisible by 64
-    DG = list(I)        #Digest as 8 32-bit words (A-H)
+    DG = list(H_t)        #Digest as 8 32-bit words (A-H)
     for j in range(0, len(M), 64):  #Iterate over message in chunks of 64
         S = M[j:j + 64]             #Current chunk
         W = [0] * 64
@@ -76,12 +76,14 @@ def Sha256(M):
             W[i] = (W[i - 16] + s0 + W[i-7] + s1) & FF
         A, B, C, D, E, F, G, H = DG #State of the compression function
         for i in range(64):
-            A, B, C, D, E, F, G, H = Sha256CF(W[i], K[i], A, B, C, D, E, F, G, H)
+            A, B, C, D, E, F, G, H = Sha256CF(W[i], K_t[i], A, B, C, D, E, F, G, H)
         DG = [(X + Y) & FF for X, Y in zip(DG, (A, B, C, D, E, F, G, H))]
     return b''.join(Di.to_bytes(4, 'big') for Di in DG)  #Convert to byte array
 
 if __name__ == "__main__":
+    print('\n'*10) 
+    msg = input("Enter msg:")
+    bd = Sha256(msg)
+    print(''.join('{:02x}'.format(i) for i in bd))
     time = timeit.timeit("Sha256('Bitcoin Miner!')", number=1000, globals=globals())
     print(f'{1000/time} Hashes/Second')
-    bd = Sha256('Bitcoin Miner!')
-    print(''.join('{:02x}'.format(i) for i in bd))
