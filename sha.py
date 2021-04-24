@@ -83,8 +83,8 @@ def Sha256(M):
 if __name__ == "__main__":
     print('\n'*10) 
     print("Running Benchmark for software\n")
-    time = timeit.timeit("Sha256('Bitcoin Miner!')", number=1000, globals=globals())
-    print(f'{1000/time} Hashes/Second\n')
+    time = timeit.timeit("Sha256('Bitcoin Miner!')", number=10000, globals=globals())
+    print(f'Python Software Encryption Speed: {10000/time} H/s\n')
     while(1):
         msg = input("Enter msg:")
         bd = Sha256(msg)
