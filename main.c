@@ -19,7 +19,6 @@ int run_mode = 0;
  
 
 // These dont neeed to be functions
-#define RLEFT(a,b) (((a) << (b)) | ((a) >> (32-(b))))
 #define RRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
 
 
@@ -88,6 +87,9 @@ void software_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 
   PadInput(msg_ascii, space);
 
+
+  //Everything below this works!
+
   unsigned char processed[64] = {
    0b01101000, 0b01100101, 0b01101100, 0b01101100, 0b01101111, 0b00100000, 0b01110111, 0b01101111,
    0b01110010, 0b01101100, 0b01100100, 0b10000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
@@ -111,42 +113,63 @@ void software_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 					    (processed[4*j + 2] << 8) +
 					    (processed[4*j + 3]);
     }
-
-    for (i = 0; i < 16; i++)
-    {
-      printf("%08x\n", W[i]);
-    }
     
-    for(int k=16; k<17; k++){
-      
-      printf("What\n");
-      printf("%08x\n", W[k-16]);
-      printf("%08x\n", RRIGHT(W[k-15],7) );
-      printf("%08x\n", RRIGHT(W[k-15],18) );
-      printf("%08x\n", RRIGHT(W[k-15],3) );
-      printf("%08x\n", RRIGHT(W[k-15],7)^RRIGHT(W[k-15],18)^ W[k-15] >> 3);
-
-      printf("%08x\n", W[k-7]);
-      printf("%08x\n", RRIGHT(W[k-2],17)^RRIGHT(W[k-2],19)^W[k-2]>>10);
-
-
-      W[k] = W[k-16] + 
-            RRIGHT(W[k-15],7)^RRIGHT(W[k-15],18)^RRIGHT(W[k-15],3) + 
-            W[k-7] +
-            RRIGHT(W[k-2],17)^RRIGHT(W[k-2],19)^RRIGHT(W[k-2],10);
+    // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
+    for(int j=16; j<64; j++){
+            W[j] = W[j-16] + 
+            (RRIGHT(W[j-15],7)^RRIGHT(W[j-15],18)^(W[j-15]>>3)) + 
+            W[j-7] +
+            (RRIGHT(W[j-2],17)^RRIGHT(W[j-2],19)^(W[j-2]>>10));
     }
 
-    printf("\n");
-    printf("%08x\n", W[15]);
-    printf("%08x\n", W[16]);
+    // Initialize working variables to current hash value:
+    unsigned int A, B, C, D, E, F, G, H, temp1, temp2;
+    A = H_t[0];
+    B = H_t[1];
+    C = H_t[2];
+    D = H_t[3];
+    E = H_t[4];
+    F = H_t[5];
+    G = H_t[6];
+    H = H_t[7];
 
 
+    // Compression function main loop:
+    for(int j=0; j<64; j++){
+      temp1 = H + 
+              (RRIGHT(E,6)^RRIGHT(E,11)^RRIGHT(E,25)) + 
+              ((E&F)^(~E&G)) + 
+              K_t[j] + W[j];
+
+      temp2 = (RRIGHT(A,2)^RRIGHT(A,13)^RRIGHT(A,22)) + 
+              ((A&B)^(A&C)^(B&C));
+
+      H = G;
+      G = F;
+      F = E;
+      E = D + temp1;
+      D = C;
+      C = B;
+      B = A;
+      A = temp1 + temp2;
+
+    }
+
+    // Add the compressed chunk to the current hash value:
+    H_t[0] += A;
+    H_t[1] += B;
+    H_t[2] += C;
+    H_t[3] += D;
+    H_t[4] += E;
+    H_t[5] += F;
+    H_t[6] += G;
+    H_t[7] += H;   
 
   }
 
   for (int i = 0; i < 8; i++)
 	{
-		msg_hash[i] = 2*i;
+		msg_hash[i] = H_t[i];
 	}
 }
 
@@ -171,7 +194,7 @@ void hardware_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 	msg_hash[1] = SHA_PTR[5];
 	msg_hash[2] = SHA_PTR[6];
 	msg_hash[3] = SHA_PTR[7];
-  msg_hash[4] = SHA_PTR[8];
+  	msg_hash[4] = SHA_PTR[8];
 	msg_hash[5] = SHA_PTR[9];
 	msg_hash[6] = SHA_PTR[10];
 	msg_hash[7] = SHA_PTR[11];
@@ -210,7 +233,7 @@ int main()
 			printf("\nSoftware Hash is: \n");
 			for (i = 0; i < 8; i++)
 			{
-				printf("%08x", soft_hash[i]);
+				printf("%08X", soft_hash[i]);
 			}
 			printf("\n");
 
@@ -229,7 +252,7 @@ int main()
 	{
 		// Run the Benchmark
 		int i = 0;
-		int size_KB = 2;
+		int loops = 10000;
 		// Choose a random Plaintext and Key
 		for (i = 0; i < 32; i++)
 		{
@@ -237,19 +260,19 @@ int main()
 		}
 		// Run Encryption
 		clock_t begin = clock();
-		for (i = 0; i < size_KB * 64; i++)
+		for (i = 0; i < loops; i++)
 		  software_hash(msg_ascii, soft_hash);
 		clock_t end = clock();
 		double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-		double speed = size_KB / time_spent;
-		printf("Software Encryption Speed: %f KB/s \n", speed);
+		double speed = loops / time_spent;
+		printf("Software Encryption Speed: %f H/s \n", speed);
 		// Run Decryption
 		begin = clock();
-		for (i = 0; i < size_KB * 64; i++)
+		for (i = 0; i < loops * 64; i++)
 			hardware_hash(msg_ascii, soft_hash);
 		end = clock();
 		time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-		speed = size_KB / time_spent;
+		speed = loops / time_spent;
 		printf("Hardware Encryption Speed: %f KB/s \n", speed);
 	}
 	return 0;
