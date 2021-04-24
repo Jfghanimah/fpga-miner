@@ -16,11 +16,9 @@ volatile unsigned int *SHA_PTR = (unsigned int *)0x00000100;
 
 // Execution mode: 0 for testing, 1 for benchmarking
 int run_mode = 0;
- 
 
 // These dont neeed to be functions
-#define RRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
-
+#define RRIGHT(a, b) (((a) >> (b)) | ((a) << (32 - (b))))
 
 /** charToHex
  *  Convert a single character to the 4-bit value it represents.
@@ -69,11 +67,9 @@ append L as a 64-bit big-endian integer, making the total post-processed length 
 such that the bits in the message are L 1 00..<K 0's>..00 <L as 64 bit integer> = k*512 total bits
 */
 
-void PadInput(unsigned char *msg_ascii, unsigned char *output){
-
+void PadInput(unsigned char *msg_ascii, unsigned char *output)
+{
 }
-
-
 
 /** hash
  *  Perform SHA256 hash in software.
@@ -83,91 +79,89 @@ void PadInput(unsigned char *msg_ascii, unsigned char *output){
  */
 void software_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 {
-  unsigned char space[64];
+	//unsigned char space[64];
 
-  PadInput(msg_ascii, space);
+	//PadInput(msg_ascii, space);
 
+	// Everything below this works!
+	// Need to figure out how to process msg_asci into this 0 padded processed format
+	unsigned char processed[64] = {
+		0b01101000, 0b01100101, 0b01101100, 0b01101100, 0b01101111, 0b00100000, 0b01110111, 0b01101111,
+		0b01110010, 0b01101100, 0b01100100, 0b10000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+		0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b01011000};
 
-  //Everything below this works!
+	// For each 512 bit chunk (we only have 1 chunk for now)
+	for (int i = 0; i < 1; i++)
+	{
+		// Step 1: Schedule array
+		unsigned int W[64] = {0};
 
-  unsigned char processed[64] = {
-   0b01101000, 0b01100101, 0b01101100, 0b01101100, 0b01101111, 0b00100000, 0b01110111, 0b01101111,
-   0b01110010, 0b01101100, 0b01100100, 0b10000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b01011000};
+		// Step 2: Copy chunk into first 16 words w[0..15] of the message schedule array
+		for (int j = 0; j < 16; j++)
+		{
+			W[j] = (processed[4 * j] << 24) +
+				   (processed[4 * j + 1] << 16) +
+				   (processed[4 * j + 2] << 8) +
+				   (processed[4 * j + 3]);
+		}
 
+		// Step 3: Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
+		for (int j = 16; j < 64; j++)
+		{
+			W[j] = W[j - 16] +
+				   (RRIGHT(W[j - 15], 7) ^ RRIGHT(W[j - 15], 18) ^ (W[j - 15] >> 3)) +
+				   W[j - 7] +
+				   (RRIGHT(W[j - 2], 17) ^ RRIGHT(W[j - 2], 19) ^ (W[j - 2] >> 10));
+		}
+		// Step 4: Initialize working variables to current hash value:
+		unsigned int A, B, C, D, E, F, G, H, temp1, temp2;
+		A = H_t[0];
+		B = H_t[1];
+		C = H_t[2];
+		D = H_t[3];
+		E = H_t[4];
+		F = H_t[5];
+		G = H_t[6];
+		H = H_t[7];
+		// Step 5: Compression function main loop:
+		for (int j = 0; j < 64; j++)
+		{
+			temp1 = H +
+					(RRIGHT(E, 6) ^ RRIGHT(E, 11) ^ RRIGHT(E, 25)) +
+					((E & F) ^ (~E & G)) +
+					K_t[j] + W[j];
 
-  // For each 512 bit chunk
-  for(int i=0; i<1; i++){
-    // Schedule array
-    unsigned int W[64] = {0};
+			temp2 = (RRIGHT(A, 2) ^ RRIGHT(A, 13) ^ RRIGHT(A, 22)) +
+					((A & B) ^ (A & C) ^ (B & C));
 
-    // copy chunk into first 16 words w[0..15] of the message schedule array
-    for(int j=0; j<16; j++){
-      W[j] =  (processed[4*j] << 24) +
-              (processed[4*j + 1] << 16) +
-					    (processed[4*j + 2] << 8) +
-					    (processed[4*j + 3]);
-    }
-    
-    // Extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array:
-    for(int j=16; j<64; j++){
-            W[j] = W[j-16] + 
-            (RRIGHT(W[j-15],7)^RRIGHT(W[j-15],18)^(W[j-15]>>3)) + 
-            W[j-7] +
-            (RRIGHT(W[j-2],17)^RRIGHT(W[j-2],19)^(W[j-2]>>10));
-    }
+			H = G;
+			G = F;
+			F = E;
+			E = D + temp1;
+			D = C;
+			C = B;
+			B = A;
+			A = temp1 + temp2;
+		}
 
-    // Initialize working variables to current hash value:
-    unsigned int A, B, C, D, E, F, G, H, temp1, temp2;
-    A = H_t[0];
-    B = H_t[1];
-    C = H_t[2];
-    D = H_t[3];
-    E = H_t[4];
-    F = H_t[5];
-    G = H_t[6];
-    H = H_t[7];
+		// Step 5: Add the compressed chunk to the current hash value:
+		H_t[0] += A;
+		H_t[1] += B;
+		H_t[2] += C;
+		H_t[3] += D;
+		H_t[4] += E;
+		H_t[5] += F;
+		H_t[6] += G;
+		H_t[7] += H;
+	}
 
-
-    // Compression function main loop:
-    for(int j=0; j<64; j++){
-      temp1 = H + 
-              (RRIGHT(E,6)^RRIGHT(E,11)^RRIGHT(E,25)) + 
-              ((E&F)^(~E&G)) + 
-              K_t[j] + W[j];
-
-      temp2 = (RRIGHT(A,2)^RRIGHT(A,13)^RRIGHT(A,22)) + 
-              ((A&B)^(A&C)^(B&C));
-
-      H = G;
-      G = F;
-      F = E;
-      E = D + temp1;
-      D = C;
-      C = B;
-      B = A;
-      A = temp1 + temp2;
-
-    }
-
-    // Add the compressed chunk to the current hash value:
-    H_t[0] += A;
-    H_t[1] += B;
-    H_t[2] += C;
-    H_t[3] += D;
-    H_t[4] += E;
-    H_t[5] += F;
-    H_t[6] += G;
-    H_t[7] += H;   
-
-  }
-
-  for (int i = 0; i < 8; i++)
+	//  Step 6: Write out the hash table values
+	for (int i = 0; i < 8; i++)
 	{
 		msg_hash[i] = H_t[i];
 	}
@@ -181,6 +175,7 @@ void software_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
  */
 void hardware_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 {
+	/*
 	SHA_PTR[0] = msg_ascii[0];
 	SHA_PTR[1] = msg_ascii[1];
 	SHA_PTR[2] = msg_ascii[2];
@@ -201,6 +196,7 @@ void hardware_hash(unsigned char *msg_ascii, unsigned int *msg_hash)
 
 	SHA_PTR[14] = 0;
 	SHA_PTR[15] = 0;
+	*/
 }
 
 /** main
@@ -228,7 +224,7 @@ int main()
 			scanf("%s", msg_ascii);
 			printf("\n");
 
-      // Calculate hash in software
+			// Calculate hash in software
 			software_hash(msg_ascii, soft_hash);
 			printf("\nSoftware Hash is: \n");
 			for (i = 0; i < 8; i++)
@@ -237,9 +233,8 @@ int main()
 			}
 			printf("\n");
 
-      return 0;
-      // Now do it in hardware
-			hardware_hash(msg_ascii, soft_hash);
+			// Now do it in hardware
+			hardware_hash(msg_ascii, hard_hash);
 			printf("\nHardware Hash is: \n");
 			for (i = 0; i < 8; i++)
 			{
@@ -252,28 +247,29 @@ int main()
 	{
 		// Run the Benchmark
 		int i = 0;
-		int loops = 10000;
+		int loops = 100000;
 		// Choose a random Plaintext and Key
 		for (i = 0; i < 32; i++)
 		{
 			msg_ascii[i] = 'a';
 		}
-		// Run Encryption
+		// Run Software Hash
 		clock_t begin = clock();
 		for (i = 0; i < loops; i++)
-		  software_hash(msg_ascii, soft_hash);
+			software_hash(msg_ascii, soft_hash);
 		clock_t end = clock();
 		double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 		double speed = loops / time_spent;
-		printf("Software Encryption Speed: %f H/s \n", speed);
-		// Run Decryption
+		printf("C Software Encryption Speed: %f H/s \n", speed);
+
+		// Run Hardware Hash
 		begin = clock();
-		for (i = 0; i < loops * 64; i++)
-			hardware_hash(msg_ascii, soft_hash);
-		end = clock();
+		for (i = 0; i < loops; i++)
+			//hardware_hash(msg_ascii, soft_hash);
+			end = clock();
 		time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 		speed = loops / time_spent;
-		printf("Hardware Encryption Speed: %f KB/s \n", speed);
+		printf("Hardware Encryption Speed: %f H/s \n", speed);
 	}
 	return 0;
 }
